@@ -1,0 +1,180 @@
+.386
+.MODEL FLAT, C
+.STACK 4096
+
+; C 표준 라이브러리 함수 선언
+EXTERN printf : PROC
+EXTERN scanf  : PROC
+EXTERN exit   : PROC
+
+.DATA
+    msg_in1     DB "Enter first number: ", 0
+    msg_in2     DB "Enter second number: ", 0
+    fmt_in      DB "%d", 0
+
+    msg_add     DB 10, "=== [1] ADDITION (Num1 + Num2) ===", 10, 0
+    msg_sub     DB 10, "=== [2] SUBTRACTION (Num1 - Num2) ===", 10, 0
+    msg_mul     DB 10, "=== [3] MULTIPLICATION (Num1 * Num2) ===", 10, 0
+    msg_div     DB 10, "=== [4] DIVISION (Num1 / Num2) ===", 10, 0
+
+    fmt_res     DB "Result (Decimal): %d", 10, 0
+    fmt_div_res DB "Result (Decimal): %d  Remainder: %d", 10, 0
+    fmt_regs    DB "Registers (Hex) -> AX:%04X BX:%04X CX:%04X DX:%04X", 10, 0
+
+    num1        DD ?
+    num2        DD ?
+
+    ; 연산 직후 16비트 레지스터 백업용 변수
+    reg_ax      DW ?
+    reg_bx      DW ?
+    reg_cx      DW ?
+    reg_dx      DW ?
+
+.CODE
+main PROC
+    ; 1. 첫 번째 숫자 입력
+    PUSH OFFSET msg_in1
+    CALL printf
+    ADD ESP, 4
+
+    PUSH OFFSET num1
+    PUSH OFFSET fmt_in
+    CALL scanf
+    ADD ESP, 8
+
+    ; 2. 두 번째 숫자 입력
+    PUSH OFFSET msg_in2
+    CALL printf
+    ADD ESP, 4
+
+    PUSH OFFSET num2
+    PUSH OFFSET fmt_in
+    CALL scanf
+    ADD ESP, 8
+
+    ; ==========================================
+    ; [1] 덧셈 (ADD)
+    ; ==========================================
+    PUSH OFFSET msg_add
+    CALL printf
+    ADD ESP, 4
+
+    MOV EAX, num1
+    MOV EBX, num2
+    MOV ECX, 0          ; 확인용 초기화
+    MOV EDX, 0          ; 확인용 초기화
+    ADD AX, BX          ; 16비트 덧셈 수행
+    CALL SAVE_REGS      ; 연산 직후 AX, BX, CX, DX 저장
+
+    MOVSX EAX, reg_ax   ; 16비트 결과를 부호 확장하여 32비트로 변환
+    PUSH EAX
+    PUSH OFFSET fmt_res
+    CALL printf
+    ADD ESP, 8
+
+    CALL PRINT_REGS
+
+    ; ==========================================
+    ; [2] 뺄셈 (SUB)
+    ; ==========================================
+    PUSH OFFSET msg_sub
+    CALL printf
+    ADD ESP, 4
+
+    MOV EAX, num1
+    MOV EBX, num2
+    MOV ECX, 0
+    MOV EDX, 0
+    SUB AX, BX          ; 16비트 뺄셈 수행
+    CALL SAVE_REGS
+
+    MOVSX EAX, reg_ax   ; 음수 결과도 정확히 출력하기 위해 부호 확장
+    PUSH EAX
+    PUSH OFFSET fmt_res
+    CALL printf
+    ADD ESP, 8
+
+    CALL PRINT_REGS
+
+    ; ==========================================
+    ; [3] 곱셈 (MUL)
+    ; ==========================================
+    PUSH OFFSET msg_mul
+    CALL printf
+    ADD ESP, 4
+
+    MOV EAX, num1
+    MOV EBX, num2
+    MOV ECX, 0
+    MOV EDX, 0
+    MUL BX              ; DX:AX = AX * BX (16비트 부호 없는 곱셈)
+    CALL SAVE_REGS
+
+    MOVZX EAX, reg_ax   ; 하위 16비트 결과를 32비트로 확장
+    PUSH EAX
+    PUSH OFFSET fmt_res
+    CALL printf
+    ADD ESP, 8
+
+    CALL PRINT_REGS
+
+    ; ==========================================
+    ; [4] 나눗셈 (DIV)
+    ; ==========================================
+    PUSH OFFSET msg_div
+    CALL printf
+    ADD ESP, 4
+
+    MOV EDX, 0          ; 나눗셈 전 DX(상위 비트) 반드시 0으로 초기화
+    MOV EAX, num1
+    MOV EBX, num2
+    MOV ECX, 0
+    DIV BX              ; AX = 몫, DX = 나머지
+    CALL SAVE_REGS
+
+    ; printf 인자는 오른쪽에서 왼쪽 순서로 PUSH
+    MOVZX EDX, reg_dx   ; 나머지
+    PUSH EDX
+    MOVZX EAX, reg_ax   ; 몫
+    PUSH EAX
+    PUSH OFFSET fmt_div_res
+    CALL printf
+    ADD ESP, 12
+
+    CALL PRINT_REGS
+
+    ; 프로그램 정상 종료
+    PUSH 0
+    CALL exit
+main ENDP
+
+; ---------------------------------------------------------
+; 프로시저 1: 현재 AX, BX, CX, DX 값을 메모리에 백업
+; ---------------------------------------------------------
+SAVE_REGS PROC
+    MOV reg_ax, AX
+    MOV reg_bx, BX
+    MOV reg_cx, CX
+    MOV reg_dx, DX
+    RET
+SAVE_REGS ENDP
+
+; ---------------------------------------------------------
+; 프로시저 2: 백업된 AX, BX, CX, DX 값을 16진수로 출력
+; ---------------------------------------------------------
+PRINT_REGS PROC
+    MOVZX EAX, reg_dx
+    PUSH EAX
+    MOVZX EAX, reg_cx
+    PUSH EAX
+    MOVZX EAX, reg_bx
+    PUSH EAX
+    MOVZX EAX, reg_ax
+    PUSH EAX
+    PUSH OFFSET fmt_regs
+    CALL printf
+    ADD ESP, 20
+    RET
+PRINT_REGS ENDP
+
+END main
